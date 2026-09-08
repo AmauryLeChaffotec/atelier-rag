@@ -1,0 +1,14 @@
+region = "eu-west-3"
+nom = "atelier-rag"
+domaine = "rag.votre-domaine.fr"
+email_alertes = "votre-adresse@example.com"
+budget_mensuel = 100
+etape = "socle"
+version_image = "a-publier"
+# Lors des mises à jour : changer d’abord version_preparation, migrer, puis version_image.
+# Garder etape = "application" après la première mise en ligne.
+version_preparation = null
+nombre_taches = 1
+classe_rds = "db.t4g.micro"
+stockage_rds_go = 20
+proteger_donnees = true

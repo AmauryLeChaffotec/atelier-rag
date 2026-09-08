@@ -1,0 +1,5 @@
+bucket       = "atelier-rag-VOTRE_NUMERO_DE_COMPTE-etat"
+key          = "atelier/terraform.tfstate"
+region       = "eu-west-3"
+encrypt      = true
+use_lockfile = true

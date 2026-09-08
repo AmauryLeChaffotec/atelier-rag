@@ -81,6 +81,7 @@ C’est un RAG **sur descriptions textuelles de visuels**. Il n’emploie pas d�
 | `technologies` | Nom et version courante |
 | `documents` | Identité, version documentaire, source, sections, brouillon, statut |
 | `versions_document` | Journal des indexations et de leur espace d’embedding |
+| `travaux_indexation` | File durable, chunks validés, propriétaire, expiration du bail et tentatives |
 | `chunks` | Texte, métadonnées, vecteur, dimension et espace d’embedding |
 | `conversations`, `messages` | Historique et lien vers l’exécution RAG |
 | `executions_retrieval` | Trace complète d’une réponse |
@@ -91,6 +92,10 @@ Les versions d’une technologie sont des documents distincts ; `versions_docume
 
 ## Les limites assumées d’un petit projet
 
-Application personnelle, un seul espace partagé protégé par une clé, un worker FastAPI, deux générations de chat simultanées au maximum. L’indexation tourne en tâche de fond dans l’API ; un redémarrage marque une indexation interrompue comme relançable, sans reprise automatique distribuée. Les jobs, utilisateurs séparés, permissions fines, crawl de sites complets et import de dépôts GitHub sont des évolutions, pas des fonctionnalités simulées.
+Application personnelle, un seul espace partagé protégé par une clé. Chaque processus FastAPI accepte deux générations de chat simultanées et 30 actions d’écriture par minute. Ces limites ne constituent pas un quota global entre plusieurs tâches Fargate.
+
+L’indexation est enregistrée dans une file PostgreSQL avant de répondre à l’interface. Un travailleur réserve le travail avec un bail de 90 secondes renouvelé pendant le calcul. S’il disparaît, un autre reprend après expiration. Le propriétaire est vérifié dans la transaction avant de remplacer les vecteurs : un ancien traitement ne peut pas écraser un nouveau résultat. Après trois interruptions brutales, le document devient relançable manuellement. Une réponse de chat en streaming, elle, n’est pas reprise automatiquement.
+
+Des verrous PostgreSQL partagés empêchent deux OCR du même document ou deux générations de la même conversation de s’exécuter simultanément. Les appels IA externes restent potentiellement répétés après un arrêt brutal avant enregistrement de leur résultat. Utilisateurs séparés, permissions fines, crawl complet et import de dépôts GitHub restent des évolutions.
 
 Une URL importe une seule page HTML rendue côté serveur ; les sites nécessitant JavaScript ou authentification ne sont pas parcourus automatiquement. Les liens privés et les metadata AWS sont interdits, avec vérification DNS et IP épinglée pendant le téléchargement.

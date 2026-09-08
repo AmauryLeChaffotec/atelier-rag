@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lireCorps } from "@/bibliotheque/requete-serveur";
 
 export const dynamic = "force-dynamic";
 const origine = () => process.env.API_INTERNE || "http://127.0.0.1:8000";
@@ -25,7 +26,7 @@ async function transmettre(
         signal: requete.signal,
         body: ["GET", "HEAD"].includes(requete.method)
           ? undefined
-          : await requete.arrayBuffer(),
+          : await lireCorps(requete),
       },
     );
     const retour = new Headers();
@@ -43,7 +44,12 @@ async function transmettre(
       status: reponse.status,
       headers: retour,
     });
-  } catch {
+  } catch (erreur) {
+    if (erreur instanceof RangeError)
+      return NextResponse.json(
+        { detail: erreur.message },
+        { status: 413, headers: { Connection: "close" } },
+      );
     return NextResponse.json(
       {
         detail:

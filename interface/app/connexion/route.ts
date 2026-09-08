@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lireCorps } from "@/bibliotheque/requete-serveur";
 export async function POST(requete: NextRequest) {
-  const { cle } = await requete.json();
-  if (typeof cle !== "string" || cle.length > 256)
-    return new Response(null, { status: 400 });
   try {
+    const { cle } = JSON.parse(new TextDecoder().decode(await lireCorps(requete, 4096)));
+    if (typeof cle !== "string" || cle.length > 256)
+      return new Response(null, { status: 400 });
     const resultat = await fetch(
       `${process.env.API_INTERNE || "http://127.0.0.1:8000"}/api/configuration`,
       {
@@ -25,7 +26,12 @@ export async function POST(requete: NextRequest) {
       maxAge: 86400,
     });
     return reponse;
-  } catch {
+  } catch (erreur) {
+    if (erreur instanceof RangeError || erreur instanceof SyntaxError)
+      return NextResponse.json(
+        { detail: "Requête de connexion invalide ou trop volumineuse." },
+        { status: erreur instanceof RangeError ? 413 : 400, headers: { Connection: "close" } },
+      );
     return NextResponse.json(
       { detail: "Serveur indisponible." },
       { status: 502 },

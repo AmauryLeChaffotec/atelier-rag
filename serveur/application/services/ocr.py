@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from application.base.connexion import executer, pool
+from application.base.verrous import verrou_operation
 from application.configuration import configuration
 from application.depots import documents
 from application.parsing.sources import extraire
@@ -108,7 +109,7 @@ def sections_ocr(document, cache, pages):
 
 
 async def lire_pdf(document_id, demande: LectureOCR):
-    async with capacite_ocr:
+    async with capacite_ocr, verrou_operation(f"ocr:{document_id}"):
         document = await documents.obtenir(document_id)
         if document["type_source"] != "pdf":
             raise HTTPException(422, "L’OCR Mistral est réservé aux PDF dans cette application.")

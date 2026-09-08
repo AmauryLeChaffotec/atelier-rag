@@ -9,8 +9,8 @@ rag/
 ├── interface/          Ce que l’on voit dans le navigateur (Next.js)
 ├── serveur/            Ce qui traite les documents et répond (FastAPI)
 ├── documentation/      Les explications et le guide AWS
-├── deploiement/        Configuration AWS et HTTPS
-├── scripts/            Démarrage, sauvegarde et estimation du coût
+├── deploiement/        Terraform : infrastructure AWS et HTTPS
+├── scripts/            Démarrage, commandes AWS et estimation du coût
 ├── compose.yaml        Les trois services locaux
 ├── .env.example        Les réglages locaux à copier dans .env
 └── README.md           La présentation du projet sur GitHub
@@ -35,11 +35,29 @@ Les noms sont français, sans accents dans les chemins pour faciliter leur utili
 | Modifier l’OCR Mistral des PDF et son cache | [`services/ocr.py`](../serveur/application/services/ocr.py), puis `MISTRAL_OCR` dans `.env` |
 | Modifier l’import ou les métadonnées | [`services/ingestion.py`](../serveur/application/services/ingestion.py) |
 | Comprendre le remplacement des embeddings | [`services/indexation.py`](../serveur/application/services/indexation.py) |
+| Comprendre la reprise après arrêt Fargate | [`services/travaux.py`](../serveur/application/services/travaux.py) |
+| Verrouiller une opération entre tâches | [`base/verrous.py`](../serveur/application/base/verrous.py) |
 | Passer les fichiers sur S3 | [`services/stockage.py`](../serveur/application/services/stockage.py) et `.env` |
 | Lire/écrire les documents en SQL | [`depots/documents.py`](../serveur/application/depots/documents.py) |
 | Ajouter une route HTTP | [`api/routes.py`](../serveur/application/api/routes.py), la logique reste dans les services |
 | Modifier les limites d’accès | [`principal.py`](../serveur/application/principal.py) et [`configuration.py`](../serveur/application/configuration.py) |
-| Ajouter une table ou colonne | Nouveau fichier SQL dans [`base/migrations`](../serveur/application/base/migrations) : `003_votre_modification.sql` |
+| Ajouter une table ou colonne | Nouveau fichier SQL dans [`base/migrations`](../serveur/application/base/migrations) : `004_votre_modification.sql` |
+
+## Je veux modifier AWS
+
+| Réglage | Fichier |
+|---|---|
+| Domaine, région, version déployée | Votre `deploiement/terraform/terraform.tfvars`, copié depuis [l’exemple](../deploiement/terraform/terraform.tfvars.example) |
+| CPU/RAM et conteneurs Fargate, HTTPS | [`application.tf`](../deploiement/terraform/application.tf) |
+| RDS, stockage S3 et images ECR | [`donnees.tf`](../deploiement/terraform/donnees.tf) |
+| VPC, subnets et security groups | [`reseau.tf`](../deploiement/terraform/reseau.tf) |
+| Rôles et permissions | [`permissions.tf`](../deploiement/terraform/permissions.tf) |
+| Budget et alarmes | [`supervision.tf`](../deploiement/terraform/supervision.tf) |
+| Images Docker à publier | [`publier_images.py`](../scripts/aws/publier_images.py) |
+| Saisir les clés privées | [`configurer_secrets.py`](../scripts/aws/configurer_secrets.py) |
+| Lancer les migrations AWS | [`preparer_base.py`](../scripts/aws/preparer_base.py) |
+
+La marche à suivre est dans le [guide AWS](deployer-sur-aws.md). Le `.env` local ne sert pas de configuration de déploiement ECS.
 
 ## Je veux changer l’interface
 

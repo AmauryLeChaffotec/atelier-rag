@@ -1,7 +1,6 @@
 .env
 .env.*
 !.env.example
-!.env.aws.example
 .venv/
 __pycache__/
 .pytest_cache/
@@ -18,3 +17,13 @@ output/
 atelier-images.tar
 .DS_Store
 Thumbs.db
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+configuration-aws.json
+configuration-secrets.json
+crash.log
+etat.s3.hcl

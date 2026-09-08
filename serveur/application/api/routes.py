@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from psycopg.types.json import Jsonb
 
@@ -25,7 +25,7 @@ from application.schemas import (
     VersionCourante,
 )
 from application.services import ingestion, stockage
-from application.services.indexation import indexer, reserver
+from application.services.indexation import reserver
 from application.services.ocr import lire_pdf
 
 routes = APIRouter(prefix="/api")
@@ -135,9 +135,8 @@ async def ocr_pdf(document_id: UUID, demande: LectureOCR):
 
 
 @routes.post("/documents/{document_id}/indexation", status_code=202)
-async def indexation(document_id: UUID, demande: Indexation, taches: BackgroundTasks):
+async def indexation(document_id: UUID, demande: Indexation):
     chunks = await reserver(document_id, demande)
-    taches.add_task(indexer, document_id, chunks, demande.revision)
     return {"statut": "indexation", "nombre_chunks": len(chunks)}
 
 

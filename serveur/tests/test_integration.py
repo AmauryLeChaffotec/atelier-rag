@@ -12,12 +12,17 @@ pytestmark = pytest.mark.skipif(not os.environ.get("DATABASE_URL_TEST"), reason=
 @pytest.fixture(autouse=True)
 def connexions_par_test(monkeypatch):
     """Chaque démarrage FastAPI reçoit un pool neuf sur sa propre boucle asyncio."""
+    if not os.environ.get("DATABASE_URL_TEST"):
+        return
     import sys
 
     from psycopg.rows import dict_row
     from psycopg_pool import AsyncConnectionPool
 
     from application import principal  # Charge les modules qui partagent le pool.
+    from application.configuration import configuration
+
+    monkeypatch.setattr(configuration(), "executer_indexations", False)
 
     ancien = principal.pool
     nouveau = AsyncConnectionPool(
@@ -33,6 +38,7 @@ async def test_parcours_api_pgvector_versions_reindexation_et_historique(monkeyp
     from application.configuration import configuration
     from application.ia.fournisseur import FournisseurIA
     from application.principal import app, requetes
+    from application.services.travaux import traiter_suivant
 
     monkeypatch.setattr(configuration(), "repertoire_fichiers", str(tmp_path))
 
@@ -78,6 +84,7 @@ async def test_parcours_api_pgvector_versions_reindexation_et_historique(monkeyp
                     json={"revision": apercu["revision"], "chunks": apercu["chunks"]},
                 )
                 assert r.status_code == 202, r.text
+                assert await traiter_suivant()
                 assert (await client.get(f"/api/documents/{document['id']}")).json()["statut"] == "indexe"
             demande = {"question": "Comment gérer une ressource ?", "technologie": technologie, "seuil": 0.9}
             r = await client.post("/api/retrieval", json=demande)
@@ -117,6 +124,8 @@ async def test_parcours_api_pgvector_versions_reindexation_et_historique(monkeyp
                 json={"revision": document["revision"], "chunks": document["brouillon"]},
             )
             assert r.status_code == 202
+            assert await traiter_suivant()
+            assert (await client.get(f"/api/documents/{ids[1]}")).json()["statut"] == "erreur"
             assert len(await lire("SELECT id FROM chunks WHERE document_id=%s", (ids[1],))) == 1
             monkeypatch.setattr(FournisseurIA, "embeddings", embeddings)
             for identifiant in ids:

@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import secrets
 from collections import defaultdict, deque
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from time import monotonic
 
 import httpx
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 from application.api.routes import routes
 from application.base.connexion import lire, migrer, pool
 from application.configuration import configuration
+from application.services.travaux import travailler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -22,9 +24,17 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 async def duree_de_vie(app):
     await pool.open()
     await pool.wait(timeout=30)
-    await migrer()
-    yield
-    await pool.close()
+    if configuration().migrer_au_demarrage:
+        await migrer()
+    travailleur = asyncio.create_task(travailler()) if configuration().executer_indexations else None
+    try:
+        yield
+    finally:
+        if travailleur:
+            travailleur.cancel()
+            with suppress(asyncio.CancelledError):
+                await travailleur
+        await pool.close()
 
 
 app = FastAPI(
@@ -49,7 +59,7 @@ async def protection(request: Request, suivant):
         ):
             return JSONResponse({"detail": "Saisissez la clé d’accès de votre atelier."}, status_code=401)
         if request.method in {"POST", "PUT", "DELETE"}:
-            # Limite globale, appropriée à cette application personnelle à un seul worker.
+            # Limite par processus : 30 actions/minute ; chaque tâche Fargate a son compteur.
             cle = "global"
             file = requetes[cle]
             maintenant = monotonic()

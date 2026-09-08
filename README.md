@@ -2,7 +2,7 @@
 
 **Une application qui répond à vos questions à partir de vos documentations et rend chaque étape inspectable.**
 
-Next.js · TypeScript · FastAPI · PostgreSQL/pgvector · Ollama en local · OpenAI sur AWS · Mistral OCR pour les PDF · Docker Compose
+Next.js · TypeScript · FastAPI · PostgreSQL/pgvector · Ollama en local · OpenAI sur AWS · Mistral OCR pour les PDF · Docker Compose · Terraform / ECS Fargate
 
 ![L’interface de conversation d’Atelier](documentation/captures/conversation.png)
 
@@ -114,8 +114,9 @@ serveur/application/
   schemas.py             Contrats et validation des données
   principal.py           Démarrage, authentification et erreurs
 documentation/           Explications, captures et tarifs
-deploiement/             Configuration AWS et HTTPS
-scripts/                 Commandes courantes
+deploiement/terraform/   ECR, ECS Fargate, RDS, S3, secrets, réseau et alarmes
+scripts/aws/             Publication des images, saisie des secrets et migration
+scripts/                 Démarrage local et estimation du coût
 ```
 
 **[Où modifier quoi ?](documentation/ou-modifier-quoi.md)** donne un lien direct pour chaque changement courant : prompt, modèle, couleur, chunking, SQL, routing, écran, etc.
@@ -124,7 +125,7 @@ Les noms de nos fichiers/répertoires et les commentaires sont français. Les co
 
 ## Les réglages importants
 
-Les variables se trouvent dans le `.env` **à la racine**, ignoré par Git. Les exemples sont dans [`.env.example`](.env.example) et [`deploiement/.env.aws.example`](deploiement/.env.aws.example).
+En local, les variables se trouvent dans le `.env` **à la racine**, ignoré par Git : [exemple](.env.example). Sur AWS, les réglages sont dans [`terraform.tfvars.example`](deploiement/terraform/terraform.tfvars.example), les clés dans Secrets Manager et leur injection dans [`application.tf`](deploiement/terraform/application.tf).
 
 | Variable | Local | Rôle |
 |---|---|---|
@@ -137,13 +138,16 @@ Les variables se trouvent dans le `.env` **à la racine**, ignoré par Git. Les 
 | `OPENAI_GENERATION` | `gpt-4o-mini` | Génération économique et vision sur AWS |
 | `MISTRAL_API_KEY` | Vide dans l’exemple | Clé privée pour l’OCR PDF facultatif |
 | `MISTRAL_OCR` | `mistral-ocr-latest` | Modèle OCR indépendant du chat et des embeddings |
-| `POSTGRES_PASSWORD` | Mot de passe local d’exemple | À remplacer sur AWS avant création de la base |
+| `POSTGRES_PASSWORD` | Mot de passe local d’exemple | Réservé au PostgreSQL de Docker Compose ; RDS utilise des secrets distincts |
 | `CLE_ACCES` | Facultative en local | Clé de l’espace partagé ; 32 caractères minimum en production |
 | `MAX_CHUNKS` | `500` | Limite de chunks par document |
 | `TAILLE_FICHIER_MO` | `15` | Limite d’import ; maximum 150 pages PDF |
 | `MAX_TOKENS_REPONSE` | `900` | Limite de génération |
 | `MAX_CONTEXTE_CARACTERES` | `16000` | Budget de texte documentaire |
 | `STOCKAGE` | `local` | `local` ou `s3` |
+| `POSTGRES_HOTE` | Vide | Sur AWS : connexion RDS par champs séparés, mot de passe injecté, certificat TLS vérifié |
+| `MIGRER_AU_DEMARRAGE` | `true` | `false` sur AWS : migrations exécutées avant le déploiement par une tâche dédiée |
+| `BAIL_INDEXATION_SECONDES` | `90` | Délai de reprise d’un travail après disparition de son propriétaire |
 
 **Lors d’un changement de modèle d’embedding, réindexez les documents.** Les embeddings Qwen et OpenAI ne sont jamais comparés entre eux. Le stockage accepte plusieurs dimensions et la recherche isole le bon espace avant le calcul des distances. Le changement de modèle de génération seul ne demande pas de réindexation.
 
@@ -198,13 +202,24 @@ uv run pytest -q
 
 Si `atelier_tests` existe déjà, ne la recréez pas. Le garde-fou des tests exige ce nom de base. Les modèles IA sont remplacés par des doubles déterministes pour tester les filtres, le scoring, les versions, l’historique et la résistance à une indexation échouée.
 
-Depuis `interface` : `npm run verifier` et `npm run build`. Un workflow GitHub Actions exécute les vérifications Python/PostgreSQL et le build Next.js. Le dossier [`tests`](serveur/tests) contient les cas critiques plutôt qu’un objectif artificiel de couverture. Le [compte rendu de vérification](documentation/verification.md) distingue les tests réels, les contrats simulés et les limites constatées.
+Depuis `interface` : `npm run verifier` et `npm run build`. GitHub Actions vérifie Python/PostgreSQL, Next.js et Terraform. Les tests de [`serveur/tests`](serveur/tests) couvrent notamment la reprise des indexations et le refus d’un traitement devenu obsolète. Le [compte rendu](documentation/verification.md) distingue les tests réels, simulés et les limites.
+
+Infrastructure sans compte AWS et sans création de ressource :
+
+```powershell
+terraform -chdir=deploiement/terraform init -backend=false
+terraform -chdir=deploiement/terraform fmt -check -recursive
+terraform -chdir=deploiement/terraform validate
+terraform -chdir=deploiement/terraform test
+```
 
 ## AWS et coût
 
-**[Guide AWS pas à pas](documentation/deployer-sur-aws.md)** : choix des services, compte et alertes, Lightsail, SSH depuis Windows, installation Docker, OpenAI, DNS/HTTPS, lancement, sauvegarde/restauration, mise à jour, arrêt des dépenses et évolutions S3/RDS.
+**[Guide AWS pas à pas](documentation/deployer-sur-aws.md)** : rôle de chaque service, compte AWS/SSO, commandes PowerShell, état Terraform dans S3, DNS/HTTPS, clés, images ECR, préparation RDS, déploiement ECS et mises à jour. Un [guide de sauvegarde/restauration](documentation/sauvegarder-restaurer-aws.md) explique aussi l’arrêt et la suppression des ressources.
 
-Ordre de grandeur selon les hypothèses du guide : **12,35 USD HT/mois pour 100 questions**, ou **13,02 USD HT pour 1 000 questions**, avec Lightsail 2 Go, un petit volume de snapshots et les appels OpenAI. Hors domaine, taxes, options et dépassements. Le forfait 1 Go à 7 USD peut réduire le coût pour une démonstration très petite, avec moins de marge mémoire ; il n’a pas été validé sur AWS.
+La configuration fournit **ECR + ECS Fargate + RDS PostgreSQL/pgvector + S3 + Secrets Manager + CloudWatch**, avec ALB/ACM pour HTTPS. Une tâche de 0,5 vCPU / 2 Go, une petite base privée Single-AZ et aucun NAT Gateway limitent le coût. Les tâches utilisent leur rôle IAM pour S3 ; aucun secret n’est embarqué dans les images. La préparation RDS se lance séparément avant les nouvelles versions.
+
+À Paris, pour 730 h/mois, l’estimation est **74,30 USD HT pour AWS**, soit **75,47 USD HT avec 1 000 questions OpenAI et 100 pages OCR**, selon les volumes précisés dans le guide. Prévoyez une marge de 80 à 100 USD HT. Hors domaine, taxes et dépassements ; les crédits AWS éventuels ne sont pas déduits. L’ALB, RDS et les IP restent en grande partie facturés même quand le site reçoit peu de visites.
 
 ```powershell
 python scripts/estimer_cout.py --questions 1000
@@ -213,11 +228,13 @@ python scripts/estimer_cout.py --questions 1000 --pages-ocr 100
 
 Les prix et sources officielles datés sont dans [`tarifs.json`](documentation/tarifs.json). **Aucun service AWS n’est créé par l’installation locale.**
 
-Avec 100 pages envoyées à Mistral OCR dans le mois, ajoutez **0,40 USD** : l’exemple à 1 000 questions passe ainsi à **13,42 USD HT**. Les résultats OCR déjà en cache ne déclenchent pas de nouvel appel.
+Le coût OCR est de **0,40 USD pour 100 pages envoyées** dans cette estimation. Les pages déjà en cache ne provoquent pas de nouvel appel, sauf perte du résultat avant son enregistrement lors d’un arrêt brutal.
 
 ## Limites et périmètre
 
-Cette version est une application personnelle démontrable, avec un espace partagé. Elle ne prétend pas fournir l’isolation de comptes d’un SaaS ni une disponibilité multi-machine. Le routing et l’adaptive sont des règles explicites ; le multimodal indexe des descriptions textuelles de pages, pas des vecteurs d’image. Les URL importent une page HTML à la fois. Une tâche d’indexation interrompue est relançable, sans file distribuée.
+Cette version est une application personnelle démontrable, avec un espace partagé. Elle ne fournit pas l’isolation de comptes d’un SaaS. La configuration AWS par défaut n’est pas hautement disponible : une tâche et une base Single-AZ. Le routing et l’adaptive sont des règles explicites ; le multimodal indexe des descriptions textuelles de pages, pas des vecteurs d’image. Les URL importent une page HTML à la fois.
+
+Les indexations passent par une **file durable PostgreSQL**, avec bail renouvelé et reprise après interruption ; un ancien traitement ne peut plus remplacer l’index. Les opérations OCR et les conversations utilisent un verrou PostgreSQL commun aux tâches. Les limites de débit (30 actions/minute, deux générations simultanées) restent par processus. Une génération de chat interrompue se relance manuellement ; un appel IA commencé peut être refacturé à la reprise.
 
 Les citations demandées au modèle peuvent être imparfaites : l’application permet de vérifier les passages et signale les numéros inexistants ou l’absence de citations. Les tokens du Studio sont estimés ; les métriques de génération viennent du fournisseur quand celui-ci les fournit.
 

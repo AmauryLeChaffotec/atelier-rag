@@ -6,13 +6,13 @@ from psycopg_pool import AsyncConnectionPool
 from application.configuration import configuration
 
 pool = AsyncConnectionPool(
-    configuration().database_url, open=False, min_size=1, max_size=5, kwargs={"row_factory": dict_row}
+    configuration().connexion_postgres, open=False, min_size=1, max_size=5, kwargs={"row_factory": dict_row}
 )
 
 
-async def migrer():
+async def migrer(connexions=None):
     """Migrations SQL ordonnées, transactionnelles, protégées par un verrou PostgreSQL."""
-    async with pool.connection() as connexion:
+    async with (connexions or pool).connection() as connexion:
         await connexion.execute("SELECT pg_advisory_xact_lock(748592)")
         await connexion.execute("CREATE TABLE IF NOT EXISTS migrations (nom text PRIMARY KEY)")
         for fichier in sorted((Path(__file__).parent / "migrations").glob("*.sql")):
@@ -20,10 +20,6 @@ async def migrer():
             if not await curseur.fetchone():
                 await connexion.execute(fichier.read_text(encoding="utf-8"))
                 await connexion.execute("INSERT INTO migrations VALUES (%s)", (fichier.name,))
-        # Un travail interrompu par un redémarrage doit redevenir relançable.
-        await connexion.execute(
-            "UPDATE documents SET statut='erreur', erreur='Indexation interrompue. Relancez-la.' WHERE statut='indexation'"
-        )
 
 
 async def lire(sql, parametres=(), unique=False):

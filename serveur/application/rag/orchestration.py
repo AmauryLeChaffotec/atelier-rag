@@ -6,9 +6,11 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi.encoders import jsonable_encoder
+from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from application.base.connexion import lire, pool
+from application.base.verrous import verrou_operation
 from application.configuration import configuration
 from application.ia.fournisseur import FournisseurIA
 from application.rag.prompt import construire
@@ -48,6 +50,17 @@ async def sauvegarder(trace, conversation_id):
 
 
 async def discuter(demande, conversation_id, liberer):
+    try:
+        async with verrou_operation(f"chat:{conversation_id}"):
+            async for bloc in produire_reponse(demande, conversation_id):
+                yield bloc
+    except HTTPException as erreur:
+        yield evenement("erreur", {"message": erreur.detail})
+    finally:
+        liberer()
+
+
+async def produire_reponse(demande, conversation_id):
     debut = perf_counter()
     ia = FournisseurIA()
     trace = {
@@ -194,9 +207,6 @@ async def discuter(demande, conversation_id, liberer):
         trace["erreur"] = "La requête a échoué. Vérifiez Ollama ou la configuration OpenAI et réessayez."
         yield evenement("erreur", {"message": trace["erreur"]})
     finally:
-        try:
-            if not sauvegardee:
-                trace["durees"]["total"] = round(perf_counter() - debut, 3)
-                await asyncio.shield(sauvegarder(trace, conversation_id))
-        finally:
-            liberer()
+        if not sauvegardee:
+            trace["durees"]["total"] = round(perf_counter() - debut, 3)
+            await asyncio.shield(sauvegarder(trace, conversation_id))
