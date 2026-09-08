@@ -175,6 +175,8 @@ La saisie est masquée. Le script envoie les valeurs directement à **Secrets Ma
 
 Le secret administrateur RDS, géré par AWS, est réservé à la préparation. Le serveur utilise le rôle PostgreSQL `atelier`, sans privilèges administrateur. ECS charge les secrets au démarrage : une mise à jour exige de nouvelles tâches. [Fonctionnement officiel](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/specifying-sensitive-data-tutorial.html).
 
+Le paramètre RDS `rds.force_ssl` est préparé avec `pending-reboot`. Il est présent dès la création de la base. Si vous changez ensuite ce paramètre ou le groupe associé à une base existante, prévoyez son redémarrage dans une fenêtre d’arrêt : `aws rds reboot-db-instance --db-instance-identifier $config.base`. [Instructions AWS sur TLS et redémarrage](https://aws.amazon.com/blogs/database/enforcing-tls-and-managing-certificate-rotation-for-rds-and-amazon-aurora-postgresql/).
+
 ## 7. Publier les images et préparer la base
 
 Faites passer les vérifications du README, puis choisissez un tag inédit :
