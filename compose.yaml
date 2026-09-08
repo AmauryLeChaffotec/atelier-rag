@@ -1,0 +1,55 @@
+name: atelier-rag
+services:
+  base:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: atelier
+      POSTGRES_USER: atelier
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atelier_local_uniquement}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["base:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atelier -d atelier"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  serveur:
+    build: ./serveur
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://atelier:${POSTGRES_PASSWORD:-atelier_local_uniquement}@base:5432/atelier
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      REPERTOIRE_FICHIERS: /donnees
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["fichiers:/donnees"]
+    depends_on:
+      base:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/sante')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+  interface:
+    build: ./interface
+    environment:
+      API_INTERNE: http://serveur:8000
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      serveur:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  base:
+  fichiers:

@@ -1,0 +1,22 @@
+[project]
+name = "atelier-rag"
+version = "1.0.0"
+description = "Un RAG explicite, en français, avec Ollama et OpenAI."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1",
+  "pydantic-settings>=2.8,<3", "psycopg[binary,pool]>=3.2,<4",
+  "httpx>=0.28,<1", "beautifulsoup4>=4.13,<5",
+  "markdown-it-py>=3,<5", "pymupdf>=1.25,<2",
+  "python-multipart>=0.0.20,<1", "boto3>=1.37,<2"
+]
+[dependency-groups]
+dev = ["pytest>=8,<10", "pytest-asyncio>=0.26,<2", "ruff>=0.11,<1"]
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+[tool.ruff]
+line-length = 110
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

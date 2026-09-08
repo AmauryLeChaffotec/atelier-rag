@@ -1,0 +1,43 @@
+name: Vérification du projet
+on: [push, pull_request]
+jobs:
+  serveur:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: atelier
+          POSTGRES_PASSWORD: verification_ci
+          POSTGRES_DB: atelier_tests
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U atelier -d atelier_tests"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      DATABASE_URL_TEST: postgresql://atelier:verification_ci@localhost:5432/atelier_tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.22"
+          python-version: "3.12"
+      - run: uv sync --frozen
+        working-directory: serveur
+      - run: uv run ruff check application tests
+        working-directory: serveur
+      - run: uv run pytest -q
+        working-directory: serveur
+  interface:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: interface/package-lock.json
+      - run: npm ci
+        working-directory: interface
+      - run: npm run build
+        working-directory: interface

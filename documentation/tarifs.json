@@ -1,0 +1,20 @@
+{
+  "date_verification": "2026-09-08",
+  "devise": "USD hors taxes",
+  "lightsail_2go": 12,
+  "snapshot_go": 0.05,
+  "modele_generation": "gpt-4o-mini",
+  "generation_entree_million": 0.15,
+  "generation_sortie_million": 0.60,
+  "modele_embedding": "text-embedding-3-small",
+  "embedding_million": 0.02,
+  "modele_ocr": "mistral-ocr-latest",
+  "ocr_mille_pages": 4,
+  "sources": [
+    "https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-bundles.html",
+    "https://aws.amazon.com/lightsail/pricing/",
+    "https://developers.openai.com/api/docs/models/gpt-4o-mini",
+    "https://developers.openai.com/api/docs/models/text-embedding-3-small",
+    "https://mistral.ai/pricing/api/"
+  ]
+}
