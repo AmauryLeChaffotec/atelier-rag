@@ -9,7 +9,7 @@ rag/
 ├── interface/          Ce que l’on voit dans le navigateur (Next.js)
 ├── serveur/            Ce qui traite les documents et répond (FastAPI)
 ├── documentation/      Les explications et le guide AWS
-├── deploiement/        Terraform : infrastructure AWS et HTTPS
+├── deploiement/aws/    Carnet d’identifiants et modèles JSON natifs ECS
 ├── scripts/            Démarrage, commandes AWS et estimation du coût
 ├── compose.yaml        Les trois services locaux
 ├── .env.example        Les réglages locaux à copier dans .env
@@ -47,17 +47,22 @@ Les noms sont français, sans accents dans les chemins pour faciliter leur utili
 
 | Réglage | Fichier |
 |---|---|
-| Domaine, région, version déployée | Votre `deploiement/terraform/terraform.tfvars`, copié depuis [l’exemple](../deploiement/terraform/terraform.tfvars.example) |
-| CPU/RAM et conteneurs Fargate, HTTPS | [`application.tf`](../deploiement/terraform/application.tf) |
-| RDS, stockage S3 et images ECR | [`donnees.tf`](../deploiement/terraform/donnees.tf) |
-| VPC, subnets et security groups | [`reseau.tf`](../deploiement/terraform/reseau.tf) |
-| Rôles et permissions | [`permissions.tf`](../deploiement/terraform/permissions.tf) |
-| Budget et alarmes | [`supervision.tf`](../deploiement/terraform/supervision.tf) |
+| Retrouver vos identifiants et votre région | Votre `configuration-aws.json` à la racine, copié depuis [l’exemple](../deploiement/aws/configuration.exemple.json) |
+| CPU/RAM, modèles IA et conteneurs Fargate | [`tache-application.exemple.json`](../deploiement/aws/tache-application.exemple.json), expliqué au [chapitre 6](apprendre-aws/06-mettre-le-site-en-ligne.md) |
+| Préparation et migrations PostgreSQL | [`tache-preparation.exemple.json`](../deploiement/aws/tache-preparation.exemple.json) et [`base/preparer.py`](../serveur/application/base/preparer.py) |
+| HTTPS, domaine et ALB | Réglages console du [chapitre 6](apprendre-aws/06-mettre-le-site-en-ligne.md) |
+| Stockage S3 et images ECR | Réglages console du [chapitre 3](apprendre-aws/03-stocker-et-publier.md) |
+| RDS et secrets | Réglages console du [chapitre 4](apprendre-aws/04-base-et-secrets.md) |
+| VPC, subnets et security groups | Réglages console du [chapitre 2](apprendre-aws/02-creer-le-reseau.md) |
+| Rôles et permissions IAM | Réglages console du [chapitre 5](apprendre-aws/05-roles-et-preparation.md) |
+| Budget et alarmes | [Chapitre 1](apprendre-aws/01-comprendre-et-preparer.md) pour le budget, [chapitre 7](apprendre-aws/07-observer-et-modifier.md) pour les alarmes |
+| Arrêter les coûts entre deux séances | [Fiche arrêter/reprendre/supprimer](apprendre-aws/08-arreter-reprendre-supprimer.md) |
+| Estimer vos durées et volumes | [`estimer_cout.py`](../scripts/estimer_cout.py), tarifs dans [`tarifs.json`](tarifs.json) |
 | Images Docker à publier | [`publier_images.py`](../scripts/aws/publier_images.py) |
 | Saisir les clés privées | [`configurer_secrets.py`](../scripts/aws/configurer_secrets.py) |
 | Lancer les migrations AWS | [`preparer_base.py`](../scripts/aws/preparer_base.py) |
 
-La marche à suivre est dans le [guide AWS](deployer-sur-aws.md). Le `.env` local ne sert pas de configuration de déploiement ECS.
+La marche à suivre est dans le [guide AWS](deployer-sur-aws.md). Le `.env` local ne sert pas de configuration de déploiement ECS. Le carnet ne contient aucun mot de passe et ne modifie pas AWS lorsque vous l’éditez. Les scripts sont facultatifs ; commencez par les manipulations du cours.
 
 ## Je veux changer l’interface
 

@@ -40,24 +40,16 @@ def principal():
     arguments = argparse.ArgumentParser(description=__doc__)
     arguments.add_argument("--desactiver-ocr", action="store_true")
     options = arguments.parse_args()
-    config, session = configuration_aws()
+    config, session = configuration_aws(champs=("secret_application",))
     client = session.client("secretsmanager")
     try:
-        existant = json.loads(
-            client.get_secret_value(SecretId=config["secret_application"])[
-                "SecretString"
-            ]
-        )
+        existant = json.loads(client.get_secret_value(SecretId=config["secret_application"])["SecretString"])
     except client.exceptions.ResourceNotFoundException:
         existant = {}
     valeurs = preparer_valeurs(existant, desactiver_ocr=options.desactiver_ocr)
-    client.put_secret_value(
-        SecretId=config["secret_application"], SecretString=json.dumps(valeurs)
-    )
+    client.put_secret_value(SecretId=config["secret_application"], SecretString=json.dumps(valeurs))
     print("Secrets enregistrés. Aucune valeur écrite dans le dépôt ou affichée.")
-    print(
-        "Si le service existe déjà, forcez un nouveau déploiement ECS pour charger les nouvelles clés."
-    )
+    print("Si le service existe déjà, forcez un nouveau déploiement ECS pour charger les nouvelles clés.")
 
 
 if __name__ == "__main__":

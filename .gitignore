@@ -27,3 +27,5 @@ configuration-aws.json
 configuration-secrets.json
 crash.log
 etat.s3.hcl
+deploiement/aws/tache-application.json
+deploiement/aws/tache-preparation.json

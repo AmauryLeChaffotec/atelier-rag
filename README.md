@@ -2,7 +2,7 @@
 
 **Une application qui répond à vos questions à partir de vos documentations et rend chaque étape inspectable.**
 
-Next.js · TypeScript · FastAPI · PostgreSQL/pgvector · Ollama en local · OpenAI sur AWS · Mistral OCR pour les PDF · Docker Compose · Terraform / ECS Fargate
+Next.js · TypeScript · FastAPI · PostgreSQL/pgvector · Ollama en local · OpenAI sur AWS · Mistral OCR pour les PDF · Docker Compose · ECS Fargate
 
 ![L’interface de conversation d’Atelier](documentation/captures/conversation.png)
 
@@ -114,7 +114,8 @@ serveur/application/
   schemas.py             Contrats et validation des données
   principal.py           Démarrage, authentification et erreurs
 documentation/           Explications, captures et tarifs
-deploiement/terraform/   ECR, ECS Fargate, RDS, S3, secrets, réseau et alarmes
+documentation/apprendre-aws/  Cours pour débutants, une étape à la fois
+deploiement/aws/         Carnet d’identifiants et modèles JSON de tâches ECS
 scripts/aws/             Publication des images, saisie des secrets et migration
 scripts/                 Démarrage local et estimation du coût
 ```
@@ -125,7 +126,7 @@ Les noms de nos fichiers/répertoires et les commentaires sont français. Les co
 
 ## Les réglages importants
 
-En local, les variables se trouvent dans le `.env` **à la racine**, ignoré par Git : [exemple](.env.example). Sur AWS, les réglages sont dans [`terraform.tfvars.example`](deploiement/terraform/terraform.tfvars.example), les clés dans Secrets Manager et leur injection dans [`application.tf`](deploiement/terraform/application.tf).
+En local, les variables se trouvent dans le `.env` **à la racine**, ignoré par Git : [exemple](.env.example). Sur AWS, vous configurez les ressources dans la console, complétez votre carnet `configuration-aws.json` et enregistrez les [définitions de tâche ECS](deploiement/aws/README.md). Les clés restent dans Secrets Manager ; les JSON ne contiennent que leurs références.
 
 | Variable | Local | Rôle |
 |---|---|---|
@@ -202,31 +203,23 @@ uv run pytest -q
 
 Si `atelier_tests` existe déjà, ne la recréez pas. Le garde-fou des tests exige ce nom de base. Les modèles IA sont remplacés par des doubles déterministes pour tester les filtres, le scoring, les versions, l’historique et la résistance à une indexation échouée.
 
-Depuis `interface` : `npm run verifier` et `npm run build`. GitHub Actions vérifie Python/PostgreSQL, Next.js et Terraform. Les tests de [`serveur/tests`](serveur/tests) couvrent notamment la reprise des indexations et le refus d’un traitement devenu obsolète. Le [compte rendu](documentation/verification.md) distingue les tests réels, simulés et les limites.
-
-Infrastructure sans compte AWS et sans création de ressource :
-
-```powershell
-terraform -chdir=deploiement/terraform init -backend=false
-terraform -chdir=deploiement/terraform fmt -check -recursive
-terraform -chdir=deploiement/terraform validate
-terraform -chdir=deploiement/terraform test
-```
+Depuis `interface` : `npm run verifier` et `npm run build`. GitHub Actions vérifie Python/PostgreSQL et Next.js. Les tests de [`serveur/tests`](serveur/tests) couvrent notamment la reprise des indexations, le refus d’un traitement devenu obsolète, le carnet AWS, les contrats JSON ECS et le calcul des coûts après arrêt. Ils ne créent aucune ressource AWS. Le [compte rendu](documentation/verification.md) distingue les tests réels, simulés et les limites.
 
 ## AWS et coût
 
-**[Guide AWS pas à pas](documentation/deployer-sur-aws.md)** : rôle de chaque service, compte AWS/SSO, commandes PowerShell, état Terraform dans S3, DNS/HTTPS, clés, images ECR, préparation RDS, déploiement ECS et mises à jour. Un [guide de sauvegarde/restauration](documentation/sauvegarder-restaurer-aws.md) explique aussi l’arrêt et la suppression des ressources.
+**[Apprendre AWS en installant Atelier à la main](documentation/deployer-sur-aws.md)** : neuf chapitres pour débutants, sans Terraform. Chaque étape explique le rôle du service, les réglages à choisir dans la console, les commandes PowerShell et la vérification à faire avant de continuer. **Pour la première séance, commencez par les chapitres 1 et 2 : compte et réseau.**
 
-La configuration fournit **ECR + ECS Fargate + RDS PostgreSQL/pgvector + S3 + Secrets Manager + CloudWatch**, avec ALB/ACM pour HTTPS. Une tâche de 0,5 vCPU / 2 Go, une petite base privée Single-AZ et aucun NAT Gateway limitent le coût. Les tâches utilisent leur rôle IAM pour S3 ; aucun secret n’est embarqué dans les images. La préparation RDS se lance séparément avant les nouvelles versions.
+L’application est adaptée à **ECR + ECS Fargate + RDS PostgreSQL/pgvector + S3 + Secrets Manager + CloudWatch**, avec ALB/ACM pour HTTPS. Vous mettez ces services en place progressivement. Une tâche de 0,5 vCPU / 2 Go, une petite base privée Single-AZ et aucun NAT Gateway limitent le coût. Les tâches utilisent leur rôle IAM pour S3 ; aucun secret n’est embarqué dans les images. La préparation RDS se lance séparément avant les nouvelles versions.
 
-À Paris, pour 730 h/mois, l’estimation est **74,30 USD HT pour AWS**, soit **75,47 USD HT avec 1 000 questions OpenAI et 100 pages OCR**, selon les volumes précisés dans le guide. Prévoyez une marge de 80 à 100 USD HT. Hors domaine, taxes et dépassements ; les crédits AWS éventuels ne sont pas déduits. L’ALB, RDS et les IP restent en grande partie facturés même quand le site reçoit peu de visites.
+Pour des séances d’apprentissage, utilisez la **[fiche arrêter/reprendre/supprimer](documentation/apprendre-aws/08-arreter-reprendre-supprimer.md)** et le **[budget des séances](documentation/apprendre-aws/09-budget-des-seances.md)**. Ils distinguent le calcul actif des ressources conservées : RDS arrêté conserve du stockage facturé et redémarre après sept jours maximum ; l’ALB doit être supprimé pour arrêter son coût horaire. Fermer le navigateur n’arrête aucun service.
 
 ```powershell
-python scripts/estimer_cout.py --questions 1000
-python scripts/estimer_cout.py --questions 1000 --pages-ocr 100
+python scripts/estimer_cout.py --profil seance
+python scripts/estimer_cout.py --profil intermittent
+python scripts/estimer_cout.py --profil intermittent --heures-alb 730
 ```
 
-Les prix et sources officielles datés sont dans [`tarifs.json`](documentation/tarifs.json). **Aucun service AWS n’est créé par l’installation locale.**
+Les prix, durées et hypothèses sont détaillés dans le cours et [`tarifs.json`](documentation/tarifs.json). Les estimations excluent les crédits AWS et certains frais précisés dans le guide ; elles ne sont pas des plafonds. Un [exercice de sauvegarde/restauration](documentation/sauvegarder-restaurer-aws.md) complète le parcours. **Aucun service AWS n’est créé par l’installation locale ou le calculateur.**
 
 Le coût OCR est de **0,40 USD pour 100 pages envoyées** dans cette estimation. Les pages déjà en cache ne provoquent pas de nouvel appel, sauf perte du résultat avant son enregistrement lors d’un arrêt brutal.
 

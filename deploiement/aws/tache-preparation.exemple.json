@@ -1,0 +1,66 @@
+{
+  "family": "atelier-rag-preparation",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::COMPTE_AWS:role/atelier-rag-preparation",
+  "runtimePlatform": {
+    "operatingSystemFamily": "LINUX",
+    "cpuArchitecture": "X86_64"
+  },
+  "containerDefinitions": [
+    {
+      "name": "preparation",
+      "image": "URI_IMAGE_SERVEUR",
+      "essential": true,
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "application.base.preparer"
+      ],
+      "environment": [
+        {
+          "name": "POSTGRES_HOTE",
+          "value": "HOTE_RDS"
+        },
+        {
+          "name": "POSTGRES_BASE",
+          "value": "atelier"
+        },
+        {
+          "name": "POSTGRES_SSLMODE",
+          "value": "verify-full"
+        },
+        {
+          "name": "POSTGRES_CERTIFICAT",
+          "value": "/projet/certificats/rds.pem"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "POSTGRES_UTILISATEUR",
+          "valueFrom": "ARN_SECRET_RDS:username::"
+        },
+        {
+          "name": "POSTGRES_MOT_DE_PASSE",
+          "valueFrom": "ARN_SECRET_RDS:password::"
+        },
+        {
+          "name": "MOT_DE_PASSE_APPLICATION",
+          "valueFrom": "ARN_SECRET_APPLICATION:postgres_mot_de_passe::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/atelier-rag",
+          "awslogs-region": "eu-west-3",
+          "awslogs-stream-prefix": "conteneurs"
+        }
+      }
+    }
+  ]
+}

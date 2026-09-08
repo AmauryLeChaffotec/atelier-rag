@@ -8,9 +8,7 @@ from commun import configuration_aws, lancer
 def verifier_resultat(reponse):
     taches = reponse.get("tasks", [])
     if reponse.get("failures") or len(taches) != 1:
-        raise RuntimeError(
-            "La tâche de préparation n’est pas accessible. Consultez ECS."
-        )
+        raise RuntimeError("La tâche de préparation n’est pas accessible. Consultez ECS.")
     conteneurs = taches[0].get("containers", [])
     if len(conteneurs) != 1 or conteneurs[0].get("exitCode") != 0:
         raise RuntimeError(
@@ -19,11 +17,9 @@ def verifier_resultat(reponse):
 
 
 def principal():
-    config, session = configuration_aws()
-    if not config["tache_preparation"]:
-        raise RuntimeError(
-            "Passez d’abord Terraform à l’étape preparation, comme indiqué dans le guide."
-        )
+    config, session = configuration_aws(
+        champs=("cluster", "tache_preparation", "subnets", "security_group", "journaux")
+    )
     ecs = session.client("ecs")
     reponse = ecs.run_task(
         cluster=config["cluster"],
@@ -55,12 +51,8 @@ def principal():
         raise RuntimeError(
             "Résultat non confirmé après attente. Vérifiez la tâche dans ECS avant toute suite."
         ) from None
-    verifier_resultat(
-        ecs.describe_tasks(cluster=config["cluster"], tasks=[identifiant])
-    )
-    print(
-        "Préparation réussie : rôle PostgreSQL, pgvector et migrations. Le service peut être déployé."
-    )
+    verifier_resultat(ecs.describe_tasks(cluster=config["cluster"], tasks=[identifiant]))
+    print("Préparation réussie : rôle PostgreSQL, pgvector et migrations. Le service peut être déployé.")
 
 
 if __name__ == "__main__":

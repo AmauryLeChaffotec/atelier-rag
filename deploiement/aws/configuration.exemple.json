@@ -1,0 +1,16 @@
+{
+  "region": "eu-west-3",
+  "compte": "VOTRE_COMPTE_12_CHIFFRES",
+  "nom": "atelier-rag",
+  "cluster": "atelier-rag",
+  "service": "atelier-rag",
+  "repositories": { "serveur": "", "interface": "" },
+  "secret_application": "",
+  "base": "atelier-rag",
+  "bucket": "",
+  "tache_preparation": "",
+  "subnets": [],
+  "security_group": "",
+  "journaux": "/ecs/atelier-rag",
+  "url": ""
+}

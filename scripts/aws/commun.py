@@ -1,7 +1,6 @@
-"""Lecture des sorties Terraform et session AWS ; aucune clé dans les arguments."""
+"""Lecture du carnet AWS rempli à la main ; aucune clé dans les arguments."""
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -15,23 +14,29 @@ def executer(arguments, **options):
     return subprocess.run(arguments, cwd=RACINE, check=True, **options)
 
 
-def configuration_aws():
-    terraform = shutil.which("terraform")
-    if not terraform:
-        raise RuntimeError("Installez Terraform et rouvrez le terminal.")
-    resultat = executer(
-        [terraform, "-chdir=deploiement/terraform", "output", "-json", "configuration"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    config = json.loads(resultat.stdout)
+def lire_configuration(chemin=RACINE / "configuration-aws.json", champs=()):
+    if not chemin.is_file():
+        raise RuntimeError(
+            "Copiez deploiement/aws/configuration.exemple.json vers configuration-aws.json et remplissez les identifiants du guide."
+        )
+    config = json.loads(chemin.read_text(encoding="utf-8-sig"))
+    if not isinstance(config, dict):
+        raise ValueError("Le carnet AWS doit être un objet JSON.")
+    compte = config.get("compte", "")
+    if not isinstance(compte, str) or len(compte) != 12 or not compte.isascii() or not compte.isdigit():
+        raise ValueError("Renseignez votre numéro de compte AWS à 12 chiffres dans configuration-aws.json.")
+    manquants = [champ for champ in ("region", *champs) if not config.get(champ)]
+    if manquants:
+        raise ValueError("Complétez le carnet AWS : " + ", ".join(manquants))
+    return config
+
+
+def configuration_aws(champs=()):
+    config = lire_configuration(champs=champs)
     session = boto3.Session(region_name=config["region"])
     compte = session.client("sts").get_caller_identity()["Account"]
     if compte != config["compte"]:
-        raise RuntimeError(
-            "Le compte AWS connecté diffère de celui de Terraform. Vérifiez AWS_PROFILE."
-        )
+        raise RuntimeError("Le compte AWS connecté diffère de votre carnet. Vérifiez AWS_PROFILE.")
     return config, session
 
 
@@ -46,6 +51,4 @@ def lancer(fonction):
     except (RuntimeError, ValueError) as erreur:
         raise SystemExit(str(erreur)) from None
     except subprocess.CalledProcessError:
-        raise SystemExit(
-            "Une commande a échoué ; la suite a été interrompue."
-        ) from None
+        raise SystemExit("Une commande a échoué ; la suite a été interrompue.") from None

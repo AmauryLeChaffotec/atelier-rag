@@ -26,7 +26,7 @@ jobs:
         working-directory: serveur
       - run: uv run ruff check application tests
         working-directory: serveur
-      - run: uv run --project serveur ruff check --config serveur/pyproject.toml scripts/aws
+      - run: uv run --project serveur ruff check --config serveur/pyproject.toml scripts/aws scripts/estimer_cout.py
       - run: uv run pytest -q
         working-directory: serveur
   interface:
@@ -42,18 +42,3 @@ jobs:
         working-directory: interface
       - run: npm run build
         working-directory: interface
-  infrastructure:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.13.5"
-      - run: terraform fmt -check -recursive
-        working-directory: deploiement/terraform
-      - run: terraform init -backend=false -input=false -lockfile=readonly
-        working-directory: deploiement/terraform
-      - run: terraform validate
-        working-directory: deploiement/terraform
-      - run: terraform test
-        working-directory: deploiement/terraform

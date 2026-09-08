@@ -10,21 +10,16 @@ from commun import configuration_aws, executer, lancer
 
 def principal():
     arguments = argparse.ArgumentParser(description=__doc__)
-    arguments.add_argument(
-        "version", help="Tag inédit, par exemple 2026-09-08-01 ; jamais latest"
-    )
+    arguments.add_argument("version", help="Tag inédit, par exemple 2026-09-08-01 ; jamais latest")
     options = arguments.parse_args()
-    if (
-        not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", options.version)
-        or options.version == "latest"
-    ):
-        raise ValueError(
-            "Choisissez un tag de version explicite valide, différent de latest."
-        )
+    if not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", options.version) or options.version == "latest":
+        raise ValueError("Choisissez un tag de version explicite valide, différent de latest.")
     docker = shutil.which("docker")
     if not docker:
         raise RuntimeError("Installez et démarrez Docker Desktop.")
-    config, session = configuration_aws()
+    config, session = configuration_aws(champs=("repositories",))
+    if set(config["repositories"]) != {"serveur", "interface"} or not all(config["repositories"].values()):
+        raise ValueError("Renseignez les deux URI ECR dans repositories : serveur et interface.")
     ecr = session.client("ecr")
     for depot in config["repositories"].values():
         try:
@@ -34,13 +29,9 @@ def principal():
             )
         except ecr.exceptions.ImageNotFoundException:
             continue
-        raise ValueError(
-            "Ce tag existe déjà dans ECR. Choisissez une nouvelle version."
-        )
+        raise ValueError("Ce tag existe déjà dans ECR. Choisissez une nouvelle version.")
     autorisation = ecr.get_authorization_token()["authorizationData"][0]
-    utilisateur, mot_de_passe = (
-        base64.b64decode(autorisation["authorizationToken"]).decode().split(":", 1)
-    )
+    utilisateur, mot_de_passe = base64.b64decode(autorisation["authorizationToken"]).decode().split(":", 1)
     executer(
         [
             docker,

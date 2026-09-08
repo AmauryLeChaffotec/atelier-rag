@@ -1,0 +1,177 @@
+{
+  "family": "atelier-rag",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::COMPTE_AWS:role/atelier-rag-execution",
+  "taskRoleArn": "arn:aws:iam::COMPTE_AWS:role/atelier-rag-application",
+  "runtimePlatform": {
+    "operatingSystemFamily": "LINUX",
+    "cpuArchitecture": "X86_64"
+  },
+  "containerDefinitions": [
+    {
+      "name": "serveur",
+      "image": "URI_IMAGE_SERVEUR",
+      "essential": true,
+      "cpu": 384,
+      "memory": 1536,
+      "stopTimeout": 120,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "POSTGRES_HOTE",
+          "value": "HOTE_RDS"
+        },
+        {
+          "name": "POSTGRES_BASE",
+          "value": "atelier"
+        },
+        {
+          "name": "POSTGRES_SSLMODE",
+          "value": "verify-full"
+        },
+        {
+          "name": "POSTGRES_CERTIFICAT",
+          "value": "/projet/certificats/rds.pem"
+        },
+        {
+          "name": "ENVIRONNEMENT",
+          "value": "production"
+        },
+        {
+          "name": "POSTGRES_UTILISATEUR",
+          "value": "atelier"
+        },
+        {
+          "name": "FOURNISSEUR_IA",
+          "value": "openai"
+        },
+        {
+          "name": "OPENAI_GENERATION",
+          "value": "gpt-4o-mini"
+        },
+        {
+          "name": "OPENAI_EMBEDDING",
+          "value": "text-embedding-3-small"
+        },
+        {
+          "name": "MISTRAL_OCR",
+          "value": "mistral-ocr-latest"
+        },
+        {
+          "name": "STOCKAGE",
+          "value": "s3"
+        },
+        {
+          "name": "S3_BUCKET",
+          "value": "NOM_BUCKET_DOCUMENTS"
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "eu-west-3"
+        },
+        {
+          "name": "MIGRER_AU_DEMARRAGE",
+          "value": "false"
+        },
+        {
+          "name": "EXECUTER_INDEXATIONS",
+          "value": "true"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "ARN_SECRET_APPLICATION:openai_api_key::"
+        },
+        {
+          "name": "MISTRAL_API_KEY",
+          "valueFrom": "ARN_SECRET_APPLICATION:mistral_api_key::"
+        },
+        {
+          "name": "CLE_ACCES",
+          "valueFrom": "ARN_SECRET_APPLICATION:cle_acces::"
+        },
+        {
+          "name": "POSTGRES_MOT_DE_PASSE",
+          "valueFrom": "ARN_SECRET_APPLICATION:postgres_mot_de_passe::"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          ".venv/bin/python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/sante')\""
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/atelier-rag",
+          "awslogs-region": "eu-west-3",
+          "awslogs-stream-prefix": "conteneurs"
+        }
+      }
+    },
+    {
+      "name": "interface",
+      "image": "URI_IMAGE_INTERFACE",
+      "essential": true,
+      "cpu": 128,
+      "memory": 384,
+      "stopTimeout": 120,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "dependsOn": [
+        {
+          "containerName": "serveur",
+          "condition": "HEALTHY"
+        }
+      ],
+      "environment": [
+        {
+          "name": "API_INTERNE",
+          "value": "http://127.0.0.1:8000"
+        },
+        {
+          "name": "COOKIE_SECURISE",
+          "value": "true"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/sante').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ],
+        "interval": 20,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/atelier-rag",
+          "awslogs-region": "eu-west-3",
+          "awslogs-stream-prefix": "conteneurs"
+        }
+      }
+    }
+  ]
+}
