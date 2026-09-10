@@ -1,99 +1,77 @@
-# AWS expliqué très simplement
+# Comprendre ton installation AWS avec trois schémas
 
-Ce document vous donne l’image générale avant de suivre le [guide AWS détaillé](deployer-sur-aws.md). Imaginez que vous construisez une **petite école pour votre application Atelier**. Chaque service AWS a une seule mission.
+Tu as créé plusieurs éléments dans AWS. Pour comprendre l’ensemble, suis **une seule application**, Atelier, et pose trois questions : **où passe sa demande ? Qui l’autorise ? Qu’est-ce qui fait tourner le programme ?**
 
-L’image de l’école aide à comprendre, mais AWS reste un ensemble d’ordinateurs et de services loués sur Internet.
+Les images représentent l’architecture du projet, pas une vérification de ton compte AWS. Clique dessus pour les agrandir sur GitHub. Les [six premières étapes du guide pratique](deployer-sur-aws.md) expliquent comment construire ces éléments.
 
-## 1 — Comprendre le cloud et préparer votre atelier
+## 1. Où sont les éléments et comment communiquent-ils ?
 
-Aujourd’hui, Atelier fonctionne sur votre ordinateur. Quand vous l’éteignez, le site s’arrête.
+Le cloud, ici, c’est louer chez AWS les moyens de faire tourner Atelier et de conserver ses données. Ton ordinateur sert à préparer le code et à administrer AWS. Une fois déployée, l’application peut fonctionner même si tu éteins ton ordinateur.
 
-Le **cloud**, c’est utiliser les ordinateurs d’une grande entreprise, ici AWS. Vous louez seulement ce dont vous avez besoin :
+![Schéma 1 : le navigateur rejoint l’ALB, puis Next.js et FastAPI dans une tâche Fargate ; FastAPI rejoint RDS, S3 et OpenAI.](schemas/aws/01-reseau-et-requetes.png)
 
-- un endroit pour faire fonctionner Atelier ;
-- une armoire pour ranger les PDF ;
-- un cahier pour mémoriser les données ;
-- des portes pour contrôler les visiteurs.
+**Lis les cadres avant les flèches.** Ton compte possède les ressources. Tu choisis la région Paris. Dans cette région, le **VPC** délimite ton réseau ; un **subnet** est une partie de ce réseau. La tâche Fargate et RDS ont chacun une adresse dans leur subnet.
 
-Votre **compte AWS** est le propriétaire de l’école. La **région Paris**, appelée `eu-west-3`, est la ville où vous la construisez. Votre identité **IAM** est votre badge personnel pour entrer dans la console et faire les réglages.
+La grande boîte orange contient **ton application en cours d’exécution** : une tâche Fargate avec deux conteneurs. Next.js affiche le site ; FastAPI traite les documents et les questions. Ils partagent le réseau de la tâche et se parlent par `localhost`, c’est-à-dire « ici, dans cette même tâche ».
 
-AWS fait payer certaines ressources tant qu’elles existent ou fonctionnent. Fermer la page AWS ne les arrête pas. C’est pour cela que vous créez d’abord une alerte de budget.
+**Suis maintenant une question de gauche à droite :**
 
-## 2 — Construire et comprendre le réseau
+1. Tu ouvres le site. Le **DNS** aide le navigateur à trouver l’adresse de l’**ALB**, le load balancer. Le certificat fourni par **ACM** permet la connexion HTTPS.
+2. L’ALB reçoit la demande et la transmet à **Next.js**, dans une tâche qui répond correctement. Il peut diriger vers une tâche de remplacement quand ECS en lance une nouvelle.
+3. Next.js transmet la question à **FastAPI**.
+4. FastAPI utilise **OpenAI** pour calculer l’embedding de la question, recherche les passages proches dans **RDS PostgreSQL/pgvector**, puis demande à OpenAI de rédiger la réponse avec ces passages.
+5. La réponse revient jusqu’à ton navigateur. **S3**, de son côté, conserve les fichiers importés ; RDS conserve les textes, embeddings et conversations.
 
-Le réseau est le plan de l’école.
+Les nombres `443`, `3000`, `8000` et `5432` sont des **ports** : ils indiquent à quel programme adresser une connexion. Les **security groups** filtrent les connexions autorisées, par exemple « accepter le port 3000 seulement depuis l’ALB ».
 
-| Mot AWS | Image simple |
-|---|---|
-| **VPC** | Le terrain privé de votre école |
-| **Subnet** | Une salle située sur ce terrain |
-| **Route** | Un panneau qui indique où aller |
-| **Internet Gateway** | Le portail entre votre terrain et Internet |
-| **Security group** | Une porte avec une liste de passages autorisés |
+### Pourquoi public et privé ?
 
-Vous créez des salles **publiques** pour l’entrée du site et l’application. Elles peuvent communiquer avec Internet. Vous créez aussi des salles **privées** pour PostgreSQL. La base n’a pas de porte directe vers Internet.
+Un subnet public possède une route vers Internet via l’**Internet Gateway**. La route indique le chemin ; le security group autorise ou refuse la connexion. Dans ce projet, la tâche a une IP publique pour ses appels sortants, mais ses règles d’entrée n’acceptent que l’ALB sur le port 3000. **Public ne veut donc pas dire accessible à tout le monde.**
 
-Les security groups disent précisément : « le visiteur peut entrer sur le site », « l’application peut parler à la base », et « personne sur Internet ne peut ouvrir directement PostgreSQL ».
+RDS est dans un subnet privé : FastAPI le rejoint par le réseau interne du VPC. S3 est un service AWS situé hors de tes subnets ; cela ne rend pas ton bucket public. Le projet le rejoint via un endpoint S3, un accès prévu depuis le VPC.
 
-## 3 — S3 pour les fichiers, ECR pour les images Docker
+*Pour alléger l’image, les deux zones sont regroupées. En pratique, tu crées deux subnets publics et deux privés. L’ALB utilise les deux zones ; une tâche tourne dans un seul subnet à la fois et ta base Single-AZ n’a qu’une instance active.*
 
-**S3** est l’armoire à documents. Atelier y range les PDF, fichiers Markdown et images extraites des documents. L’armoire est privée : seul le bon rôle AWS peut l’ouvrir.
+## 2. Où interviennent les droits IAM ?
 
-**ECR** est une étagère qui conserve les paquets de votre programme. Ces paquets s’appellent des **images Docker**. Une image Docker contient le code et tout ce qu’il faut pour le démarrer.
+**Le réseau répond : « peut-on établir la connexion ? » IAM répond : « cette identité peut-elle effectuer cette action AWS ? »** Pouvoir joindre S3 ne donne pas automatiquement le droit de lire ses fichiers.
 
-Une image Docker n’est donc pas une photo. C’est plutôt une boîte fermée contenant une version prête à l’emploi d’Atelier. La déposer dans ECR ne la fait pas fonctionner : elle attend simplement qu’ECS la demande.
+![Schéma 2 : ton rôle d’administration et les trois rôles de l’application, avec leurs permissions et la distinction entre trust policy et permission policy.](schemas/aws/02-identites-et-droits-iam.png)
 
-## 4 — Créer PostgreSQL et conserver les secrets
+Lis chaque ligne de gauche à droite : **qui agit → avec quel rôle → pour faire quoi**.
 
-**RDS PostgreSQL** est le grand cahier de la bibliothèque. Il mémorise :
+Quand **toi** tu ouvres la console avec SSO, AWS utilise ton rôle d’administration. Quand **le programme** tourne, il utilise les rôles configurés pour lui. **Il n’hérite pas de tes droits personnels.**
 
-- les documents connus par Atelier ;
-- les morceaux de texte, appelés chunks ;
-- les embeddings qui servent à retrouver les bons passages ;
-- les conversations et les travaux en attente.
+Un **rôle** est une identité utilisable temporairement. Une **permission policy** est sa liste d’actions autorisées sur des ressources précises. Exemple : « lire les fichiers de ce bucket ». Une **trust policy** précise qui peut utiliser le rôle ; ici, les rôles des tâches font confiance au service ECS Tasks.
 
-**pgvector** ajoute à PostgreSQL la capacité de comparer les embeddings. C’est comme retrouver les fiches qui parlent de la même idée, même si elles n’utilisent pas exactement les mêmes mots.
+Les trois rôles du projet ont des missions différentes :
 
-**Secrets Manager** est un petit coffre-fort. Il garde les mots de passe et les clés OpenAI ou Mistral. Le code ne contient pas ces secrets : au démarrage, AWS donne seulement les valeurs nécessaires au bon conteneur.
+- **Exécution** : ECS prend les images dans ECR, charge le secret applicatif depuis Secrets Manager et écrit les logs dans CloudWatch.
+- **Application** : le code peut lire, écrire et supprimer les fichiers de son bucket S3. Ces permissions appartiennent à la tâche ; FastAPI les utilise pour le stockage.
+- **Préparation** : ECS peut charger les deux secrets pour la tâche qui prépare PostgreSQL. Les droits administrateur **dans PostgreSQL** viennent ensuite du compte SQL et de son mot de passe, pas du rôle IAM lui-même.
 
-Dans votre projet, le secret administrateur de RDS sert à préparer la base. Le secret de l’application sert au fonctionnement normal. Atelier n’utilise donc pas tous les pouvoirs de l’administrateur chaque jour.
+Un **ARN** identifie précisément une ressource dans une permission ou une configuration. Ce n’est pas sa clé secrète.
 
-## 5 — Donner les droits et lancer une première tâche ECS
+### Exemple : pourquoi une connexion à RDS peut échouer
 
-Un **rôle IAM** est un badge de travail. Chaque badge ouvre seulement certaines portes :
+Trois conditions doivent fonctionner ensemble : ECS peut **lire le secret**, le réseau **autorise FastAPI à joindre RDS**, puis PostgreSQL **accepte le compte SQL et son mot de passe**. Corriger IAM ne corrige pas un mauvais port ; ouvrir un port ne corrige pas un mauvais mot de passe.
 
-- le badge de préparation peut préparer PostgreSQL ;
-- le badge de l’application peut gérer les fichiers de son bucket S3 ;
-- le badge d’exécution permet à ECS de prendre les images ECR, les secrets et d’écrire les logs.
+## 3. Que font ECR, ECS et Fargate ensemble ?
 
-**ECS** est le responsable qui organise le travail. **Fargate** fournit l’ordinateur temporaire qui exécute la tâche. Vous n’avez pas à acheter ni administrer cette machine.
+![Schéma 3 : le code devient deux images Docker conservées dans ECR ; une définition décrit la tâche, ECS la lance et Fargate fournit le calcul.](schemas/aws/03-images-ecs-et-fargate.png)
 
-La première tâche ECS est un ouvrier qui vient une seule fois préparer la bibliothèque : il crée pgvector, le compte SQL limité et les tables. Quand il a terminé correctement, il s’arrête avec le code `0`. Ce n’est pas une panne : son travail est fini.
+**Lis du haut vers le bas.** Tu construis deux **images Docker** sur ton PC : des paquets contenant le programme et ses dépendances. Tu les envoies dans **ECR**, qui les conserve. À ce stade, aucun site ne tourne grâce à ce seul envoi.
 
-## 6 — Donner une adresse HTTPS au site et lancer le service
+La **définition de tâche** décrit comment démarrer ces images : mémoire, CPU, rôles et secrets. Le **service ECS** utilise cette fiche avec une consigne : « garder une tâche active ». **Fargate** fournit le calcul et la mémoire pour exécuter cette tâche. Le **cluster ECS** regroupe les services et les tâches pour les gérer.
 
-Le **service ECS** garde Atelier ouvert. Si un conteneur tombe, ECS essaie d’en lancer un autre depuis l’image conservée dans ECR.
+La tâche ponctuelle de **préparation** utilise une autre fiche : elle prépare pgvector et les tables, puis s’arrête. Le service du **site**, lui, remplace une tâche qui disparaît tant que sa consigne reste à une tâche active.
 
-Votre tâche contient deux conteneurs :
+**Voilà pourquoi les données sont ailleurs :** remplacer une tâche ne doit pas effacer les fichiers S3 ou la base RDS. Une nouvelle tâche retrouve les mêmes données. Et pour arrêter le site, tu règles le service à **zéro tâche** ; fermer le navigateur ne suffit pas. Consulte la [fiche d’arrêt](apprendre-aws/08-arreter-reprendre-supprimer.md) pour les autres services et leurs coûts.
 
-- **Next.js** affiche les pages du site ;
-- **FastAPI** lit les documents, interroge PostgreSQL et appelle OpenAI.
+## Relier tes manipulations à leur résultat
 
-Le **DNS** est l’adresse écrite sur la carte de l’école, par exemple `rag.mondomaine.fr`. Le **certificat HTTPS** est sa carte d’identité : le navigateur peut vérifier qu’il parle au bon site et chiffrer la conversation.
+Quand tu configures les **subnets et routes**, tu choisis où placer les ressources et leurs chemins. Avec les **security groups**, tu autorises les connexions. Avec **IAM**, tu autorises les actions AWS. Avec **ECR**, tu fournis le programme. Avec **ECS/Fargate**, tu le fais fonctionner. Avec **ALB, DNS et HTTPS**, tu permets au navigateur de le trouver et de lui parler.
 
-L’**ALB** est l’accueil. Il reçoit les visiteurs en HTTPS, vérifie que l’interface fonctionne et les dirige vers elle. Il garde une adresse stable même si Fargate remplace l’ordinateur qui fait tourner Atelier.
+Pour t’entraîner, explique en suivant les images : « J’importe un PDF : mon navigateur parle à l’ALB, puis à Next.js, puis à FastAPI. FastAPI écrit le fichier dans S3 grâce au rôle applicatif et enregistre ses informations dans PostgreSQL grâce à sa connexion SQL. »
 
-## Le trajet d’une question
-
-Quand vous posez une question, voici le voyage :
-
-1. Le DNS conduit votre navigateur vers l’ALB.
-2. L’ALB transmet la demande au conteneur Next.js.
-3. Next.js parle au conteneur FastAPI dans la même tâche.
-4. FastAPI cherche les bons passages dans RDS PostgreSQL.
-5. Il appelle OpenAI avec la question et ces passages.
-6. La réponse revient dans votre navigateur, avec ses sources.
-
-S3 garde les fichiers, RDS garde la mémoire organisée, ECR garde le programme, Secrets Manager garde les clés, ECS/Fargate fait travailler le programme et l’ALB accueille les visiteurs.
-
-Vous pouvez maintenant ouvrir le [chapitre 1 du parcours pratique](apprendre-aws/01-comprendre-et-preparer.md). Vous retrouverez les mêmes mots, avec les clics, les commandes et les vérifications à effectuer vous-même.
+*Références pour approfondir : [réseau Fargate](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-task-networking.html), [subnets](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html), [rôle IAM de tâche](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html). Les [consignes de création des images](schemas/aws/consignes-images.md) sont conservées avec le document.*

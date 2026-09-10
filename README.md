@@ -207,7 +207,7 @@ Depuis `interface` : `npm run verifier` et `npm run build`. GitHub Actions véri
 
 ## AWS et coût
 
-**[Apprendre AWS en installant Atelier à la main](documentation/deployer-sur-aws.md)** : neuf chapitres pour débutants, sans Terraform. Chaque étape explique le rôle du service, les réglages à choisir dans la console, les commandes PowerShell et la vérification à faire avant de continuer. Une [explication très simple du cloud](documentation/aws-explique-tres-simplement.md) présente d’abord les six grandes étapes avec l’image d’une école. **Pour la première séance pratique, commencez ensuite par les chapitres 1 et 2 : compte et réseau.**
+**[Apprendre AWS en installant Atelier à la main](documentation/deployer-sur-aws.md)** : neuf chapitres pour débutants, sans Terraform. Chaque étape explique le rôle du service, les réglages à choisir dans la console, les commandes PowerShell et la vérification à faire avant de continuer. Pour comprendre l’ensemble, commencez par les [trois schémas du réseau, d’IAM et d’ECS/Fargate](documentation/aws-explique-tres-simplement.md). **Pour la première séance pratique, passez ensuite aux chapitres 1 et 2 : compte et réseau.**
 
 L’application est adaptée à **ECR + ECS Fargate + RDS PostgreSQL/pgvector + S3 + Secrets Manager + CloudWatch**, avec ALB/ACM pour HTTPS. Vous mettez ces services en place progressivement. Une tâche de 0,5 vCPU / 2 Go, une petite base privée Single-AZ et aucun NAT Gateway limitent le coût. Les tâches utilisent leur rôle IAM pour S3 ; aucun secret n’est embarqué dans les images. La préparation RDS se lance séparément avant les nouvelles versions.
 
