@@ -2,6 +2,8 @@
 
 **Vous créez vous-même les ressources dans la console AWS, une étape à la fois. Aucun Terraform n’est nécessaire.** Ce parcours part de zéro en cloud. Les commandes du terminal sont expliquées, et chaque chapitre se termine par une vérification et une consigne de fin de séance.
 
+Si les mots VPC, RDS ou ECS sont encore abstraits, commencez par **[AWS expliqué très simplement](aws-explique-tres-simplement.md)**. Ce petit document raconte les six premières étapes avec l’image d’une école, avant les réglages techniques.
+
 Votre objectif est d’apprendre, pas de garder un site allumé tout le mois. Commencez par les étapes sans calcul facturé à l’heure. Créez RDS et Fargate lorsque vous avez du temps pour les tester, puis suivez systématiquement la fiche d’arrêt.
 
 ## Le parcours
